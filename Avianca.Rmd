@@ -1,0 +1,82 @@
+# Pronosticando los retornos de una acción usando un modelo ARIMAX
+
+En el [archivo de Excel](https://cecabrera.github.io/files/Prueba_Avianca.xlsx) hay información de precios desde el 10 de Abril de 2013 al 26 de Mayo de 2017 de la empresa "XYZ". Me dí a la tarea de desarrollar un modelo estadístico que pronosticara si el precio de una acción sube o baja en función de su valor histórico y otras variables. Este análisis fue desarrollado en R, Markdown y GitHub y es hecho con propósitos investigativos. El código fuente pueden hallarlo en mi [reposotorio (carpeta)](https://github.com/cecabrera/avianca) en GitHub. 
+
+Comenzamos cargando los paquetes a utilizar y los datos del archivo de Excel:
+```{r}
+
+require(caTools)
+require(readxl)
+require(data.table)
+require(plotly)
+
+d <- data.table(readxl::read_excel(path = "Prueba_Avianca.xlsx", sheet = 1))
+
+```
+
+1. Un máximo de 5 gráficos que concluyan los puntos más importantes de su Análisis Exploratorio de Datos. 
+2. ¿Cuáles son las variables con mayor incidencia en la variable “close_trend”?
+3. Crear uno o varios modelos para predecir la variable “close_trend”. Incluya una breve explicación de las técnicas seleccionadas para evaluar. 
+4. ¿Por qué selecciono esos algoritmos? 
+5. Calcular la curva ROC y el AUC del modelo(s)
+6. ¿Considera que el AUC es la métrica más recomendada para evaluarlo? ¿Por qué?
+7. ¿Qué otras métricas podrían considerarse? 
+8. ¿Cuál es su conclusión del modelo?
+
+Para ello, opté por escoger un modelo ARIMAX; cuyas siglas significan:
+``` 
+AR = Autorregresive (autorregresivo)
+I = Integrated (integrado)
+MA = Moving Average (media móvil)
+X = Aditional Variables (con variables adicionales)
+```
+
+
+``` {r}
+
+
+# Gráfico del precio en plotly
+p <- plot_ly(data = d, x = ~fecha, y = ~close, color = I("black")) %>%
+  add_markers(y = ~close, text = ~fecha, showlegend = FALSE) %>%
+  add_lines(y = ~fitted(loess(open ~ as.numeric(fecha))),
+            line = list(color = 'rgba(7, 164, 181, 1)'),
+            name = "Loess Smoother")
+
+# Se calculan los retornos en función del lag (intervalo) que se quiera cortar. Es decir, 1 día antes, 2 días antes, etc.
+lags = 1
+d$returns <- c(rep(NA, lags), diff(d$open, lag = lags))
+
+plotnprint <- function(x, y){
+  print(adf.test(y))
+  qplot(y = y, x = x, geom = "line")
+}
+
+plotnprint(x = d$fecha, y = d$close)
+# Por resultado del Augmented Dickey-Fuller Test la serie no es estacional. A stationary time series means a time series without trend, one having a constant mean and variance over time, which makes it easy for predicting values. Tomado de: https://www.r-bloggers.com/forecasting-stock-returns-using-arima-model/
+logical <- !is.na(d$returns)
+plotnprint(x = d[logical, fecha], y = d[logical, returns])
+# Ya es estacional por el p-valor inferior a cero.
+rm(logical)
+
+# Splitting the data
+set.seed(101) 
+sample = sample.split(d$returns, SplitRatio = .80)
+train = subset(returns, sample == TRUE)
+test  = subset(returns, sample == FALSE)
+
+plot(train, type = "l")
+```
+
+# Conclusiones
+
+Initial results seem encouraging even if the quality of the outcome varies greatly by instrument. However there is a huge room for improvement. I put below some directions for further analysis:
+
+Path optimality: The algorithm used here for defining the trees is optimal at each split but it doesn’t guarantee the optimality of the path. Adding a metric to measure the optimality of the path would certainly improve the above results.
+Other variables: I chose the explanatory variables solely based on experience. It’s very likely that this choice is neither good nor optimal.
+Backtest methodology: I used a simple In and Out of sample methodology. In a more formal backtest I would rather use a rolling or expanding window of in and out sample sub-periods (e.g., walk forward analysis)
+
+# Bibliografía
+
+https://www.quantinsti.com/blog/forecasting-stock-returns-using-arima-model/
+https://github.com/daumann/r-stockPrediction
+http://colorado.rstudio.com:3939/commodities-quandl-flexdb/
