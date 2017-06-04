@@ -1,18 +1,19 @@
 # Pronosticando los retornos de una acción usando un modelo ARIMAX
 
-En el [archivo de Excel](https://cecabrera.github.io/files/Prueba_Avianca.xlsx) hay información de precios desde el 10 de Abril de 2013 al 26 de Mayo de 2017 de la empresa "XYZ". Me dí a la tarea de desarrollar un modelo estadístico que pronosticara si el precio de una acción sube o baja en función de su valor histórico y otras variables. Este análisis fue desarrollado en R, Markdown y GitHub y es hecho con propósitos investigativos. El código fuente pueden hallarlo en mi [reposotorio (carpeta)](https://github.com/cecabrera/avianca) en GitHub. 
+En el [archivo de Excel](https://cecabrera.github.io/files/Prueba_Avianca.xlsx) hay información de precios desde el 10 de Abril de 2013 al 26 de Mayo de 2017 de la empresa "XYZ". Me dí a la tarea de desarrollar un modelo estadístico que pronosticara si el precio de una acción sube o baja en función de su valor histórico y otras variables. Este análisis fue desarrollado en R, Markdown y GitHub y es hecho con propósitos investigativos. El código fuente pueden hallarlo en mi [reposotorio (carpeta)](https://github.com/cecabrera/stock) en GitHub. 
 
 Comenzamos cargando los paquetes a utilizar y los datos del archivo de Excel:
 ```{r}
 # Sino estan instalados usar:
-# install.packages(c("caTolos"))
+# install.packages(c("caTools", "readxl""))
 require(caTools)
+require(tseries)
 require(readxl)
 require(data.table)
 require(plotly)
 
-d <- data.table(readxl::read_excel(path = "Prueba_Avianca.xlsx", sheet = 1))
-
+d <- data.table(readxl::read_excel(path = "Datos.xlsx", sheet = 1))
+head(d)
 ```
 
 1. Un máximo de 5 gráficos que concluyan los puntos más importantes de su Análisis Exploratorio de Datos. 
@@ -62,8 +63,8 @@ rm(logical)
 # Splitting the data
 set.seed(101) 
 sample = sample.split(d$returns, SplitRatio = .80)
-train = subset(returns, sample == TRUE)
-test  = subset(returns, sample == FALSE)
+train = subset(d$returns, sample == TRUE)
+test  = subset(d$returns, sample == FALSE)
 
 plot(train, type = "l")
 ```
