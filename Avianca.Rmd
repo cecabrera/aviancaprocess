@@ -4,7 +4,8 @@ En el [archivo de Excel](https://cecabrera.github.io/files/Prueba_Avianca.xlsx) 
 
 Comenzamos cargando los paquetes a utilizar y los datos del archivo de Excel:
 ```{r}
-
+# Sino estan instalados usar:
+# install.packages(c("caTolos"))
 require(caTools)
 require(readxl)
 require(data.table)
