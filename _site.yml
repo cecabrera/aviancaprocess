@@ -1,0 +1,8 @@
+name: "Pronóstico a precio de acciones"
+navbar:
+  title: "Camilo Cabrera - Analytics Consultant"
+  right:
+    - text: "Home"
+      href: index.html
+    - text: "About"
+      href: http://cecabrera.github.io/about
