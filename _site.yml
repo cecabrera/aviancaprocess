@@ -1,6 +1,6 @@
 name: "Pronóstico a precio de acciones"
 navbar:
-  title: "Camilo Cabrera - Analytics Consultant"
+  title: "Camilo Cabrera"
   right:
     - text: "Home"
       href: index.html
