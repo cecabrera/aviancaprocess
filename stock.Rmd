@@ -104,7 +104,7 @@ auc
 d$returns <- c(NA, diff(d$open, lag = 1))
 
 print(adf.test(d$close))
-# Por resultado del Augmented Dickey-Fuller Test la serie no es estacional. A stationary time series means a time series without trend, one having a constant mean and variance over time, which makes it easy for predicting values. Tomado de: https://www.r-bloggers.com/forecasting-stock-returns-using-arima-model/
+# Por resultado del Augmented Dickey-Fuller Test la serie no es estacional. A stationary time series means a time series without trend, one having a constant mean and variance over time, which makes it easy for predicting values.
 
 logical <- !is.na(d$returns)
 print(adf.test(d[logical, returns]))
@@ -119,21 +119,23 @@ test  = subset(d$returns, sample == FALSE)
  
 ```
 
-Fuente de información: 
+Fuente de información: https://www.r-bloggers.com/forecasting-stock-returns-using-arima-model/
 
 ## Análisis iterativo de 25 modelos
 
+Código fuente: https://github.com/daumann/r-stockPrediction/blob/master/findBestPrediction.r
+
+En el ejemplo de este código, de los 25 modelos intentados, el óptimo fue uno de Redes Neuronales Artificiales. 
+
 # Conclusiones
 
-En la teoría, las variables del modelo 'explican' parte del comportamiento del precio de esta acción. En la práctica, __los precios de las acciones responden a las expectativas que tiene el mercado en función de nueva información (como noticias)__ y por ende, ninguna de estas variables entran en esta categoría; ya que dependen de información pasada. Hay que tener prudencia cuando se tomen decisiones de inversión teniendo en cuenta _únicamente_ estas variables. 
+En la teoría, las variables del modelo de Regresión Logística 'explicaron' parte del comportamiento del precio de la acción. En la práctica, __los precios de las acciones responden a las expectativas que tiene el mercado en función de nueva información (como noticias)__ y por ende, ninguna de las demás variables en la base de datos entran en esta categoría: dependen de información pasada. Hay que tener prudencia cuando se tomen decisiones de inversión teniendo en cuenta _únicamente_ estas variables. 
 
-Initial results seem encouraging even if the quality of the outcome varies greatly by instrument. However there is a huge room for improvement. I put below some directions for further analysis:
+Por otro lado, la estructuración de modelos de series de tiempo aglutinan toda información pasada y están diseñados para considerar tendencias, eventos pasados y lags entre eventos. Es por esta razón que un modelo autorregresivo (AR) integrado (I) de media móvil (MA) desempeña un mejor papel teórico en la modelación del precio de las acciones. Aún así, hay que considerar variables como noticias y tendencias en redes sociales para tener un mirada holística de lo que sucede con la acción. 
 
-Path optimality: The algorithm used here for defining the trees is optimal at each split but it doesn’t guarantee the optimality of the path. Adding a metric to measure the optimality of the path would certainly improve the above results.
-Other variables: I chose the explanatory variables solely based on experience. It’s very likely that this choice is neither good nor optimal.
-Backtest methodology: I used a simple In and Out of sample methodology. In a more formal backtest I would rather use a rolling or expanding window of in and out sample sub-periods (e.g., walk forward analysis)
+Finalmente, la precisión de un modelo está atada a su desempeño frente al "test" dataset y de sus métricas respecto a otros modelos. De ahí la importancia de cross validar con varias opciones.
 
-# Bibliografía
+# Fuentes bibliográficas
 
 - https://www.quantinsti.com/blog/forecasting-stock-returns-using-arima-model/
 - https://github.com/daumann/r-stockPrediction
