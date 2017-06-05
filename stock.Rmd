@@ -1,75 +1,99 @@
-# Pronosticando los retornos de una acción usando un modelo ARIMAX
+# Pronosticando los retornos de una acción utilizando un modelo de Regresión Logística
 
-En el [archivo de Excel](https://cecabrera.github.io/files/Prueba_Avianca.xlsx) hay información de precios desde el 10 de Abril de 2013 al 26 de Mayo de 2017 de la empresa "XYZ". Me dí a la tarea de desarrollar un modelo estadístico que pronosticara si el precio de una acción sube o baja en función de su valor histórico y otras variables. Este análisis fue desarrollado en R, Markdown y GitHub y es hecho con propósitos investigativos. El código fuente pueden hallarlo en mi [reposotorio (carpeta)](https://github.com/cecabrera/stock) en GitHub. 
+En el [archivo de Excel](https://cecabrera.github.io/files/Datos.xlsx) hay información de precios desde el 10 de Abril de 2013 al 26 de Mayo de 2017 de la empresa "XYZ". Me dí a la tarea de desarrollar un modelo estadístico que pronosticara si el precio de una acción sube o baja en función de su valor histórico y otras variables. Este análisis fue desarrollado en R, Markdown y GitHub y es hecho con propósitos investigativos. El código fuente pueden hallarlo en mi [reposotorio (carpeta)](https://github.com/cecabrera/stock) en GitHub.
 
 Comenzamos cargando los paquetes a utilizar y los datos del archivo de Excel:
-```{r}
-# Sino estan instalados usar:
-# install.packages(c("caTools", "readxl""))
+
+```{r setup, message=FALSE}
+# install.packages(c("caTools", "tseries", "readxl", "data.table", "plotly"))
 require(caTools)
 require(tseries)
 require(readxl)
 require(data.table)
-require(plotly)
+require(ggplot2)
+require(corrplot)
+library(ROCR)
 
 d <- data.table(readxl::read_excel(path = "Datos.xlsx", sheet = 1))
-head(d)
+
+# mostrar las primeras 6 filas de las primeras 7 columnas.
+head(d[, .(fecha, open, high, low, close, volume)])
 ```
 
-1. Un máximo de 5 gráficos que concluyan los puntos más importantes de su Análisis Exploratorio de Datos. 
-2. ¿Cuáles son las variables con mayor incidencia en la variable “close_trend”?
-3. Crear uno o varios modelos para predecir la variable “close_trend”. Incluya una breve explicación de las técnicas seleccionadas para evaluar. 
-4. ¿Por qué selecciono esos algoritmos? 
-5. Calcular la curva ROC y el AUC del modelo(s)
-6. ¿Considera que el AUC es la métrica más recomendada para evaluarlo? ¿Por qué?
-7. ¿Qué otras métricas podrían considerarse? 
-8. ¿Cuál es su conclusión del modelo?
+En la hoja `campos` del archivo de Excel se encuentra la descripción de cada una de las columnas de la variable `d`.
 
-Para ello, opté por escoger un modelo ARIMAX; cuyas siglas significan:
-``` 
-AR = Autorregresive (autorregresivo)
-I = Integrated (integrado)
-MA = Moving Average (media móvil)
-X = Aditional Variables (con variables adicionales)
+Graficamos el precio de cierre usando la librería `ggplot2`:
+```{r}
+
+ggplot(data = d, aes(x = fecha, y = close)) + geom_line()
+
 ```
 
+Antes de proceder a modelar los datos, los vamos a dividir en dos: un bloque de "training" para entrenar el modelo con el 80% de los datos y un bloque de "testing" para calcular el nivel de precisión de nuestro modelo con los datos más recientes. 
 
-``` {r}
-
-
-# Gráfico del precio en plotly
-p <- plot_ly(data = d, x = ~fecha, y = ~close, color = I("black")) %>%
-  add_markers(y = ~close, text = ~fecha, showlegend = FALSE) %>%
-  add_lines(y = ~fitted(loess(open ~ as.numeric(fecha))),
-            line = list(color = 'rgba(7, 164, 181, 1)'),
-            name = "Loess Smoother")
-
-# Se calculan los retornos en función del lag (intervalo) que se quiera cortar. Es decir, 1 día antes, 2 días antes, etc.
-lags = 1
-d$returns <- c(rep(NA, lags), diff(d$open, lag = lags))
-
-plotnprint <- function(x, y){
-  print(adf.test(y))
-  qplot(y = y, x = x, geom = "line")
-}
-
-plotnprint(x = d$fecha, y = d$close)
-# Por resultado del Augmented Dickey-Fuller Test la serie no es estacional. A stationary time series means a time series without trend, one having a constant mean and variance over time, which makes it easy for predicting values. Tomado de: https://www.r-bloggers.com/forecasting-stock-returns-using-arima-model/
-logical <- !is.na(d$returns)
-plotnprint(x = d[logical, fecha], y = d[logical, returns])
-# Ya es estacional por el p-valor inferior a cero.
-rm(logical)
-
-# Splitting the data
-set.seed(101) 
-sample = sample.split(d$returns, SplitRatio = .80)
-train = subset(d$returns, sample == TRUE)
-test  = subset(d$returns, sample == FALSE)
-
-plot(train, type = "l")
+```{r}
+train <- d[1:floor(nrow(d)*0.8),]
+test <- d[(floor(nrow(d)*0.8)+1):nrow(d)]
 ```
+
+Todas las variables en el archivo de Excel (a excepción de `fecha`) son numéricas. Mediante un modelo de regresión logística múltiple (Logit), calculamos las variables con mayor insidencia en la explicación de la variable `close_trend`.
+
+```{r, message = FALSE}
+model <- glm(close_trend ~ ., family = binomial(link = 'logit'), data = train[, -1, with = FALSE])
+summary(model)
+```
+
+Estadísticamente, las variables que 'explican' el comportamiento de `close_trend` son:
+
+- El intercepto del modelo.
+- [`p_bollinger_lower_band`](https://es.wikipedia.org/wiki/Bandas_de_Bollinger): son bandas de volatilidad que se ubican por encima y por debajo de una media móvil. 
+- [`p_average_true_range`](http://stockcharts.com/school/doku.php?id=chart_school:technical_indicators:average_true_range_atr): es un indicador que mide _volatilidad_. Según el modelo, por cada unidad que aumenta el logaritmo de esta variable (porque es un modelo Logit), el logaritmo del precio de cierre aumenta en 3.765 unidades.
+- `p_average_true_range_v3`: radio del `p_average_true_range/cierre`.
+- [`p_detrended_price_oscillator`](http://stockcharts.com/school/doku.php?id=chart_school:technical_indicators:detrended_price_osci): indicador diseñado para remover la tendencia de los precios y hacer más fácil la identificación de ciclos.
+- [`p_know_sure_thing`](http://stockcharts.com/school/doku.php?id=chart_school:technical_indicators:know_sure_thing_kst): indicador que mide el _momentum_ del precio para cuatro diferentes ciclos de precios.
+
+Todas estas variables fueron construidas basadas en el precio histórico; lo que compromete la calidad del modelo al violar el supuesto de no-multicolinealidad.
+
+Mientras que no hay un equivalente al `R²` de los modelos de regresión lineal, el `R²` de McFadden puede ser usado para calcular el ajuste del modelo. 
+
+```{r, message=FALSE, warning=FALSE}
+require(pscl)
+pR2(model)
+```
+
+## Calculando la habilidad predictiva del modelo
+
+Es momento de calcular la precisión del modelo utilizando los datos de la variable `test` definida previamente. En vista que es un modelo Logit, el output son probabilidades por lo que usaremos una cota de 0.5 para determinar si el precio sube o bajo en los próximos días.
+
+```{r}
+fitted.results <- predict(model,newdata=test[, c(-1, -7), with = FALSE],type='response')
+fitted.results <- ifelse(fitted.results > 0.5,1,0)
+misClasificError <- mean(fitted.results != test$close_trend)
+print(paste0('Precisión: ',round(100*(1-misClasificError), 1), "%"))
+```
+
+Una precisión del `64.9%` es relativamente baja si consideramos para lo que queremos utilizar el modelo. Hay que tener en cuenta que este resultado depende de la división manual que hice a los datos del 80%. Para experimentar una precisión mayor es necesario hacer alguna cross validación como k-fold; u otra disponible en la literatura.
+
+Como último paso, calcularemos la _curva ROC_ y el área bajo la curva (AUC) las cuales son medidas típicas de desempeño para clasificadores binarios. 
+
+El ROC es una curva creada para graficar la tasa de verdaderos positivos contra los falsos positivos en varias configuraciones, mientras que el AUC es el área bajo la curva de ROC. Como estándar en la academia, un modelo con buena habilidad predictiva debería estar cercano a 1 en lugar de 0.5.
+
+```{r, message = FALSE, warning=FALSE}
+p <- predict(model,newdata=test[, c(-1, -7), with = FALSE],type='response')
+pr <- prediction(p, test$close_trend)
+prf <- performance(pr, measure = "tpr", x.measure = "fpr")
+plot(prf)
+
+auc <- performance(pr, measure = "auc")
+auc <- auc@y.values[[1]]
+auc
+```
+
+Aún cuando AUC es una medida 
 
 # Conclusiones
+
+En la teoría, las variables del modelo 'explican' parte del comportamiento del precio de esta acción. En la práctica, __los precios de las acciones responden a las expectativas que tiene el mercado en función de nueva información (como noticias)__ y por ende, ninguna de estas variables entran en esta categoría; ya que dependen de información pasada. Hay que tener prudencia cuando se tomen decisiones de inversión teniendo en cuenta _únicamente_ estas variables. 
 
 Initial results seem encouraging even if the quality of the outcome varies greatly by instrument. However there is a huge room for improvement. I put below some directions for further analysis:
 
@@ -82,3 +106,6 @@ Backtest methodology: I used a simple In and Out of sample methodology. In a mor
 https://www.quantinsti.com/blog/forecasting-stock-returns-using-arima-model/
 https://github.com/daumann/r-stockPrediction
 http://colorado.rstudio.com:3939/commodities-quandl-flexdb/
+http://www.sthda.com/english/wiki/correlation-matrix-a-quick-start-guide-to-analyze-format-and-visualize-a-correlation-matrix-using-r-software
+https://www.r-bloggers.com/how-to-perform-a-logistic-regression-in-r/
+http://www.statisticssolutions.com/assumptions-of-logistic-regression/
